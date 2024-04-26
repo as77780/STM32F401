@@ -42,13 +42,25 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
+RTC_HandleTypeDef hrtc;
+
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
-/* USER CODE BEGIN PV */
+UART_HandleTypeDef huart1;
 
+/* USER CODE BEGIN PV */
+char rx_buffer[64];
+volatile uint8_t rx_index = 0;
+volatile uint8_t rx_complete = 0;
+
+void ResetI2C(I2C_HandleTypeDef* rev_i2c)
+{
+	HAL_I2C_DeInit(rev_i2c);
+	HAL_I2C_Init(rev_i2c);
+}
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -59,8 +71,11 @@ static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_RTC_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 void TIM_PWM_Init(uint32_t frequency, TIM_HandleTypeDef *htim);
+void ProcessCommand(char* command);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -102,6 +117,8 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
+  MX_RTC_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
 
@@ -111,16 +128,16 @@ int main(void)
   }
 
 
-  uint32_t frequency = 10000; // Частота таймера (в Гц)
-         TIM_PWM_Init(frequency, &htim1);
-         frequency = 111;
-         TIM_PWM_Init(frequency, &htim2);
-         frequency = 444;
-         TIM_PWM_Init(frequency, &htim3);
-         frequency = 5555;
-        TIM_PWM_Init(frequency, &htim4);
+  //uint32_t frequency = 10000; // Частота таймера (в Гц)
+       //  TIM_PWM_Init(frequency, &htim1);
+       //  frequency = 111;
+       //  TIM_PWM_Init(frequency, &htim2);
+       //  frequency = 444;
+       //  TIM_PWM_Init(frequency, &htim3);
+       //  frequency = 5555;
+       // TIM_PWM_Init(frequency, &htim4);
 
-
+        HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_buffer[rx_index], 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -128,7 +145,13 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  if (rx_complete)
+	     {
+	       ProcessCommand(rx_buffer);
+	       rx_index = 0;
+	       rx_complete = 0;
+	       HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_buffer[rx_index], 1);
+	     }
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -151,8 +174,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 25;
@@ -210,6 +234,41 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
 
 }
 
@@ -426,6 +485,39 @@ static void MX_TIM4_Init(void)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -516,7 +608,108 @@ void TIM_PWM_Init(uint32_t frequency, TIM_HandleTypeDef *htim) {
 	  HAL_TIM_PWM_Start(htim, TIM_CHANNEL_1);
 
 }
+
+
+void ProcessCommand(char* command)
+{
+	 // Инициализируем переменные для хранения номера и значения таймера
+	  int timer_number = -1; // Инициализируем отрицательным значением для обнаружения ошибки
+	  int timer_value = -1;
+
+	  // Разбиваем строку команды на токены с использованием разделителя ":"
+	  char* token = strtok(command, ":");
+
+	  // Первый токен должен быть ключевым словом "CMD"
+	  if (token != NULL && strcmp(token, "CMD") == 0)
+	  {
+	    // Получаем следующий токен (название команды)
+	    token = strtok(NULL, ":");
+	    if (token != NULL && strcmp(token, "SET_TIMER") == 0)
+	    {
+	      // Получаем номер таймера
+	      token = strtok(NULL, ":");
+	      if (token != NULL)
+	      {
+	        timer_number = atoi(token); // Преобразуем строку в число
+	        // Получаем значение таймера
+	        token = strtok(NULL, ":");
+	        if (token != NULL)
+	        {
+	          timer_value = atoi(token); // Преобразуем строку в число
+	        }
+	      }
+	    }
+	  }
+
+	  // Проверяем, были ли успешно получены номер и значение таймера
+	  if (timer_number >= 0 && timer_value >= 0)
+	  {
+
+		  if(timer_number==1){
+			  TIM_PWM_Init(timer_value, &htim1);
+		  }
+		  else if(timer_number==2){
+			  TIM_PWM_Init(timer_value, &htim2);
+		  }
+		  else if(timer_number==3){
+			  TIM_PWM_Init(timer_value, &htim3);
+		 		  }
+		  else if(timer_number==4){
+			  TIM_PWM_Init(timer_value, &htim4);
+		 		  }
+
+
+
+	    // Здесь можно добавить код для установки таймера с полученными параметрами
+	    // Например, вызов функции для установки таймера TIM1 с полученным значением timer_value
+	    // set_timer(TIM1, timer_value);
+	    // Также можно использовать номер таймера для определения, какой именно таймер устанавливается
+	  }
+	  else
+	  {
+	    // Обработка ошибки: команда была некорректной или отсутствовали параметры
+	  }
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart == &huart1)
+  {
+    if (rx_buffer[rx_index] == '\n' || rx_buffer[rx_index] == '\r')
+    {
+      rx_buffer[rx_index] = '\0';
+      rx_complete = 1;
+    }
+    else
+    {
+      rx_index++;
+      HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_buffer[rx_index], 1);
+    }
+  }
+}
+
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM11 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM11) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
